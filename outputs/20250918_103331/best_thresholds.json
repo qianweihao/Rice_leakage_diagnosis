@@ -1,0 +1,5 @@
+{
+  "type": "single",
+  "best_model": "ExtraTrees",
+  "leak_threshold": 0.27999999999999997
+}

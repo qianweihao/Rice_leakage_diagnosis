@@ -1,0 +1,128 @@
+{
+  "ExtraTrees": {
+    "folds": [
+      {
+        "model_name": "ExtraTrees",
+        "fold_idx": 0,
+        "pr_auc_leak": 0.37257481172370444,
+        "best_thr": 0.35,
+        "f1_at_best_thr": 0.45054945054945056
+      },
+      {
+        "model_name": "ExtraTrees",
+        "fold_idx": 1,
+        "pr_auc_leak": 0.4327011987529903,
+        "best_thr": 0.25,
+        "f1_at_best_thr": 0.49859943977591037
+      },
+      {
+        "model_name": "ExtraTrees",
+        "fold_idx": 2,
+        "pr_auc_leak": 0.3918379353255577,
+        "best_thr": 0.44999999999999996,
+        "f1_at_best_thr": 0.42857142857142855
+      },
+      {
+        "model_name": "ExtraTrees",
+        "fold_idx": 3,
+        "pr_auc_leak": 0.46648749753384,
+        "best_thr": 0.1,
+        "f1_at_best_thr": 0.5301204819277109
+      },
+      {
+        "model_name": "ExtraTrees",
+        "fold_idx": 4,
+        "pr_auc_leak": 0.5655689013693376,
+        "best_thr": 0.25,
+        "f1_at_best_thr": 0.5822784810126582
+      }
+    ],
+    "mean_pr_auc": 0.44583406894108596,
+    "mean_f1": 0.4980238563674317,
+    "mean_thr": 0.27999999999999997
+  },
+  "RandomForest": {
+    "folds": [
+      {
+        "model_name": "RandomForest",
+        "fold_idx": 0,
+        "pr_auc_leak": 0.3253428529301006,
+        "best_thr": 0.35,
+        "f1_at_best_thr": 0.43023255813953487
+      },
+      {
+        "model_name": "RandomForest",
+        "fold_idx": 1,
+        "pr_auc_leak": 0.4143331264224178,
+        "best_thr": 0.2,
+        "f1_at_best_thr": 0.4461942257217848
+      },
+      {
+        "model_name": "RandomForest",
+        "fold_idx": 2,
+        "pr_auc_leak": 0.3669969134218632,
+        "best_thr": 0.35,
+        "f1_at_best_thr": 0.4411764705882353
+      },
+      {
+        "model_name": "RandomForest",
+        "fold_idx": 3,
+        "pr_auc_leak": 0.4749818415912095,
+        "best_thr": 0.25,
+        "f1_at_best_thr": 0.5337837837837838
+      },
+      {
+        "model_name": "RandomForest",
+        "fold_idx": 4,
+        "pr_auc_leak": 0.5763450199146991,
+        "best_thr": 0.25,
+        "f1_at_best_thr": 0.6114649681528662
+      }
+    ],
+    "mean_pr_auc": 0.431599950856058,
+    "mean_f1": 0.49257040127724094,
+    "mean_thr": 0.27999999999999997
+  },
+  "LogReg": {
+    "folds": [
+      {
+        "model_name": "LogReg",
+        "fold_idx": 0,
+        "pr_auc_leak": 0.1386140745945813,
+        "best_thr": 0.15,
+        "f1_at_best_thr": 0.24
+      },
+      {
+        "model_name": "LogReg",
+        "fold_idx": 1,
+        "pr_auc_leak": 0.26567091857971675,
+        "best_thr": 0.15,
+        "f1_at_best_thr": 0.33240997229916897
+      },
+      {
+        "model_name": "LogReg",
+        "fold_idx": 2,
+        "pr_auc_leak": 0.12314489639038048,
+        "best_thr": 0.2,
+        "f1_at_best_thr": 0.22388059701492538
+      },
+      {
+        "model_name": "LogReg",
+        "fold_idx": 3,
+        "pr_auc_leak": 0.20475906148926087,
+        "best_thr": 0.1,
+        "f1_at_best_thr": 0.3506172839506173
+      },
+      {
+        "model_name": "LogReg",
+        "fold_idx": 4,
+        "pr_auc_leak": 0.2179916168746774,
+        "best_thr": 0.05,
+        "f1_at_best_thr": 0.3051643192488263
+      }
+    ],
+    "mean_pr_auc": 0.19003611358572337,
+    "mean_f1": 0.29041443450270754,
+    "mean_thr": 0.13
+  }
+}
