@@ -1,29 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-计算算法排水检测的全面评估指标
-
-比较：
-  • 算法结果：labeled_events_final_12h.csv 中的 drain 事件（code,start,end,label）
-  • 人工标记：label_data 中 is_outlier=1（按相邻点≤2小时合并为人工排水时间段）
-
-评估指标：
-  • 精确率（Precision）：算法检测正确的比例 = TP / (TP + FP)
-  • 召回率（Recall）：人工标记被正确检测的比例 = TP / (TP + FN)
-  • F1分数：精确率和召回率的调和平均 = 2 * (P * R) / (P + R)
-  • 漏检率（Miss Rate）：人工标记未被检测的比例 = FN / (TP + FN) = 1 - Recall
-  • 误检率（False Positive Rate）：误报的比例 = FP / (FP + TN)
-  • 准确率（Accuracy）：整体正确的比例 = (TP + TN) / (TP + TN + FP + FN)
-
-匹配策略：
-  1. 严格包含：人工时间段完全包含算法时间段
-  2. 时间重叠：算法时间段与人工时间段有任意重叠
-  3. IoU阈值：时间重叠度（IoU）超过指定阈值
-
-输出：
-  • 各设备和总体的全面评估指标
-  • 保存详细结果到 drain_accuracy_comprehensive.csv
-"""
-
+# 计算算法排水检测的全面评估指标
 import os
 import glob
 import pandas as pd
@@ -31,7 +7,7 @@ from datetime import timedelta
 
 # ===================== 配置 =====================
 LABEL_DATA_DIR     = "label_data"
-ALGO_RESULTS_FILE  = "labeled_events_final_12h.csv"   # 使用原脚本中的文件名
+ALGO_RESULTS_FILE  = "labeled_events_final_12h.csv"  
 PATTERN            = "device_*.csv"
 IOU_THRESHOLD      = 0.5   # IoU匹配阈值
 MERGE_GAP_HOURS    = 2     # 人工标记合并间隔（小时）

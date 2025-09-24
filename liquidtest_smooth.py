@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
+#获取液位数据
 """
 批量获取液位数据 → 清洗异常(>24) → 小时均值 → 去空小时 → 平滑
 → “滚动线性斜率 + 允许小间断合并”识别持续下降段 → 导出结果与图
-
-输出目录：clean_results_smooth/
+输出目录:clean_results_smooth/
   device_{code}.csv                小时级数据 + 斜率/标记
   drain_segments_{code}.csv        持续下降段列表
   device_{code}.png                曲线图（红色高亮下降段）
-
-文件名保持不变（只是放进目录里）。
 """
 
 import os

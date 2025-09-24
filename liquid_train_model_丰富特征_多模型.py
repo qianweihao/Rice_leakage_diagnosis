@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # multiclass_multi_model_extended.py
-
+#废弃模型-多模型效果较差
 import os
 import numpy as np
 import pandas as pd

@@ -1,22 +1,10 @@
 # -*- coding: utf-8 -*-
+#主流程
 """
-Step: 根据最新"异常/排水"逻辑提取事件段 + 多重过滤 + 12小时后置确认
-新增/修正要点（本版相对你上一版的重要变化）：
-  • “异常后隔离窗”与“数据不一致隔离窗”均改为【区间相交】判定：
-      只要候选段 [start, end] 与任一隔离窗有重叠，就直接过滤（不再仅检查起点）。
-  • “数据不一致（liquidLevelValue ≠ liquidLevel_clean）”
-      - 仍写入 anomaly CSV（合并为段）
-      - 隔离窗改为对称闭区间：[t-1h, t+1h]
-  • 其他逻辑保持：
-      - drain 两条触发路：任意 5h 内 ≥4 小时 diff < -0.3；或 3h 累计和 < -2.0
-      - 起始 Δ5 突变过滤（8mm）
-      - 异常（夜间上升 diff>0.8）后的闭区间隔离：[anomaly_end, anomaly_end+ANOM_WINDOW]
-      - 12 小时后置：开始 +12h 下降 ≥ 2.5 mm（向后 ≤1h 取样）
-
 输出：
-  1) labeled_events_updated.csv    （anomaly & drain，未叠加12h）
-  2) labeled_events_final_12h.csv  （仅 drain，已通过12h≥2.5mm）
-  3) labeled_anomalies.csv         （仅 anomaly：夜间上升 & 数据不一致）
+  1) labeled_events_updated.csv    (anomaly & drain,未叠加12h)
+  2) labeled_events_final_12h.csv  （仅 drain,已通过12h≥2.5mm)
+  3) labeled_anomalies.csv         （仅 anomaly:夜间上升 & 数据不一致）
 """
 
 import os, glob
@@ -38,7 +26,7 @@ DROP_SUM_TH  = 2.0   # 3h 累计降幅阈值（mm）
 FAST_WIN_H   = 5     # 多数小时窗口
 FAST_NEED_H  = 4     # 窗口内至少 4 小时满足速降
 
-SPIKE_TH     = 8.0   # 起始 vs 前5时段突变阈值（mm）
+SPIKE_TH     = 8.1   # 起始 vs 前5时段突变阈值（mm）
 ANOM_WINDOW  = pd.Timedelta(hours=5)  # 异常结束后的闭区间隔离 [ae, ae+5h]
 MAX_GAP_H    = 3     # >3h 断块
 

@@ -1,10 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-设备液位数据可视化脚本
-用于绘制device_157B025030026和device_157B025030033的液位数据
-并标注异常和漏水事件
-"""
-
+#验证组-设备液位数据可视化脚本
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -65,6 +59,10 @@ def load_weather_data():
 
 def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df):
     """绘制单个设备的数据和事件"""
+    # 定义时间范围
+    start_date = pd.to_datetime('2025-08-10')
+    end_date = pd.to_datetime('2025-09-17')
+    
     # 定义人工排水事件日期和级别
     manual_drain_events = {
         '157B025010050': {
@@ -72,12 +70,12 @@ def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df)
             '2025-09-16': {'level': '轻度排水', 'color': 'cyan', 'linestyle': '-.', 'marker': 'o'}
         },
         '157B025030023': {
-            '2025-08-13': {'level': '重度排水', 'color': 'darkred', 'linestyle': '-', 'marker': 's'},
+            '2025-08-13': {'level': '重度排水', 'color': 'darkred', 'linestyle': ':', 'marker': 's'},
             '2025-09-12': {'level': '中度排水', 'color': 'purple', 'linestyle': '--', 'marker': 'v'},
             '2025-09-16': {'level': '轻度排水', 'color': 'cyan', 'linestyle': '-.', 'marker': 'o'}
         },
         '157B025030032': {
-            '2025-08-13': {'level': '重度排水', 'color': 'darkred', 'linestyle': '-', 'marker': 's'},
+            '2025-08-13': {'level': '重度排水', 'color': 'darkred', 'linestyle': ':', 'marker': 's'},
             '2025-09-12': {'level': '中度排水', 'color': 'purple', 'linestyle': '--', 'marker': 'v'},
             '2025-09-16': {'level': '轻度排水', 'color': 'cyan', 'linestyle': '-.', 'marker': 'o'}
         }
@@ -85,6 +83,9 @@ def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df)
     
     # 加载设备数据
     df = load_device_data(device_code)
+    
+    # 过滤时间范围
+    df = df[(df['msgTime'] >= start_date) & (df['msgTime'] <= end_date)]
     
     # 创建双y轴
     ax2 = ax.twinx()
@@ -94,12 +95,10 @@ def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df)
     
     # 绘制降雨量数据
     if not weather_df.empty:
-        # 筛选在液位数据时间范围内的降雨数据
-        start_date = df['msgTime'].min().date()
-        end_date = df['msgTime'].max().date()
+        # 筛选在指定时间范围内的降雨数据
         weather_filtered = weather_df[
-            (weather_df['date'].dt.date >= start_date) & 
-            (weather_df['date'].dt.date <= end_date)
+            (weather_df['date'] >= start_date) & 
+            (weather_df['date'] <= end_date)
         ]
         
         if not weather_filtered.empty:
@@ -117,8 +116,12 @@ def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df)
                 liquid_ylim = ax.get_ylim()
                 ax2.set_ylim(liquid_ylim)
     
-    # 筛选该设备的异常事件
-    device_anomalies = anomalies_df[anomalies_df['code'] == device_code]
+    # 筛选该设备的异常事件（在时间范围内）
+    device_anomalies = anomalies_df[
+        (anomalies_df['code'] == device_code) &
+        (anomalies_df['start'] <= end_date) &
+        (anomalies_df['end'] >= start_date)
+    ]
     
     # 标注异常事件
     anomaly_labeled = False
@@ -127,18 +130,63 @@ def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df)
         ax.axvspan(row['start'], row['end'], alpha=0.3, color='red', label=label)
         anomaly_labeled = True
     
-    # 筛选该设备的漏水事件
-    device_drains = drain_df[drain_df['code'] == device_code]
+    # 筛选该设备的漏水事件（在时间范围内）
+    device_drains = drain_df[
+        (drain_df['code'] == device_code) &
+        (drain_df['start'] <= end_date) &
+        (drain_df['end'] >= start_date)
+    ]
     
-    # 标注漏水事件
-    drain_labeled = False
+    # 定义需要展示算法漏水事件的指定日期
+    target_leak_dates = ['2025-09-11', '2025-09-15', '2025-08-13', '2025-09-12']
+    
+    # 进一步筛选：只显示指定日期的漏水事件
+    filtered_drains = []
     for _, row in device_drains.iterrows():
-        label = '漏水' if not drain_labeled else ""
-        ax.axvspan(row['start'], row['end'], alpha=0.3, color='orange', label=label)
+        event_date = row['start'].strftime('%Y-%m-%d')
+        if event_date in target_leak_dates:
+            filtered_drains.append(row)
+    
+    # 转换为DataFrame
+    if filtered_drains:
+        device_drains = pd.DataFrame(filtered_drains)
+    else:
+        device_drains = pd.DataFrame()
+    
+    # 标注漏水事件并计算漏水速率
+    drain_labeled = False
+    print(f"  漏水事件时间段:")
+    for _, row in device_drains.iterrows():
+        # 计算漏水速率 (mm/h)
+        duration_hours = (row['end'] - row['start']).total_seconds() / 3600
+        if 'delta_12h_mm' in row and pd.notna(row['delta_12h_mm']):
+            # 使用12小时液位变化量计算速率
+            leak_rate = abs(row['delta_12h_mm']) / 12  # mm/h
+        else:
+            # 如果没有delta_12h_mm，使用持续时间估算
+            leak_rate = 5.0 / duration_hours if duration_hours > 0 else 0  # 假设平均漏水5mm
+        
+        label = '算法检测漏水' if not drain_labeled else ""
+        # 增强算法漏水事件的可视化效果
+        ax.axvspan(row['start'], row['end'], alpha=0.5, facecolor='red', label=label, edgecolor='darkred', linewidth=2)
+        
+        # 在时段中间添加文本标注
+        mid_time = row['start'] + (row['end'] - row['start']) / 2
+        y_pos = ax.get_ylim()[1] * 0.85
+        ax.text(mid_time, y_pos, '漏水', 
+               ha='center', va='center', fontsize=9, 
+               bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8, edgecolor='red'))
+        
+        # 输出漏水事件信息
+        print(f"    {row['start'].strftime('%Y-%m-%d %H:%M')} 至 {row['end'].strftime('%Y-%m-%d %H:%M')} - 漏水速率: {leak_rate:.2f} mm/h")
+        
         drain_labeled = True
     
-    # 设置标题和标签
-    ax.set_title(f'设备 {device_code} 液位数据', fontsize=14, fontweight='bold')
+    # 设置x轴显示范围
+    ax.set_xlim(start_date, end_date)
+    
+    # 设置图表标题和标签
+    ax.set_title(f'设备 {device_code} 液位数据与事件分析 (2025-08-10 至 2025-09-17)', fontsize=14, fontweight='bold')
     ax.set_xlabel('时间', fontsize=12)
     ax.set_ylabel('液位值（cm）', fontsize=12)
     ax.grid(True, alpha=0.3)
@@ -155,19 +203,26 @@ def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df)
     for drain_date, event_info in device_drain_events.items():
         try:
             drain_datetime = pd.to_datetime(drain_date)
-            # 检查日期是否在数据范围内
-            if (drain_datetime >= df['msgTime'].min().normalize() and 
-                drain_datetime <= df['msgTime'].max().normalize()):
-                # 绘制垂直线
-                ax.axvline(x=drain_datetime, 
-                          color=event_info['color'], 
-                          linestyle=event_info['linestyle'], 
-                          linewidth=4, 
-                          alpha=0.9)
+            # 检查日期是否在指定时间范围内
+            if (drain_datetime >= start_date and 
+                drain_datetime <= end_date):
+                # 标记人工排水时间范围：从前一天中午12点到当天中午12点
+                day_start = drain_datetime.replace(hour=12, minute=0, second=0, microsecond=0) - pd.Timedelta(days=1)
+                day_end = drain_datetime.replace(hour=12, minute=0, second=0, microsecond=0)
                 
-                # 在线条顶部添加标记点
+                # 绘制水平区域标记24小时排水时段
+                ax.axvspan(day_start, day_end, 
+                          color=event_info['color'], 
+                          alpha=0.3, 
+                          label=f"人工排水-{event_info['level']}" if event_info['level'] not in drain_legend_added else "")
+                
+                # 记录已添加的图例
+                drain_legend_added.add(event_info['level'])
+                
+                # 在中间位置添加标记点（当天00:00）
+                day_middle = drain_datetime.replace(hour=0, minute=0, second=0, microsecond=0)
                 y_max = ax.get_ylim()[1]
-                ax.plot(drain_datetime, y_max * 0.95, 
+                ax.plot(day_middle, y_max * 0.95, 
                        marker=event_info['marker'], 
                        color=event_info['color'], 
                        markersize=10, 
@@ -212,12 +267,42 @@ def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df)
     # 打印事件统计
     print(f"设备 {device_code}:")
     print(f"  异常事件数量: {len(device_anomalies)}")
-    print(f"  漏水事件数量: {len(device_drains)}")
+    print(f"  算法检测漏水事件数量（指定日期）: {len(device_drains)}")
+    device_drain_events = manual_drain_events.get(device_code, {})
+    print(f"  人工排水事件数量: {len(device_drain_events)}")
+    if device_drain_events:
+        print(f"  人工排水日期: {list(device_drain_events.keys())}")
     if len(device_drains) > 0:
-        print(f"  漏水事件时间段:")
-        for _, row in device_drains.iterrows():
-            print(f"    {row['start'].strftime('%Y-%m-%d %H:%M')} 至 {row['end'].strftime('%Y-%m-%d %H:%M')}")
+        print(f"  显示的算法漏水事件日期: {[row['start'].strftime('%Y-%m-%d') for _, row in device_drains.iterrows()]}")
     print()
+
+def calculate_leak_rate_statistics(drain_df):
+    """计算漏水速率统计信息"""
+    print("\n=== 漏水速率统计分析 ===")
+    
+    for device_code in DEVICES:
+        device_drains = drain_df[drain_df['code'] == device_code]
+        if len(device_drains) == 0:
+            continue
+            
+        leak_rates = []
+        print(f"\n设备 {device_code} 漏水速率详情:")
+        
+        for _, row in device_drains.iterrows():
+            if 'delta_12h_mm' in row and pd.notna(row['delta_12h_mm']):
+                leak_rate = abs(row['delta_12h_mm']) / 12  # mm/h
+                leak_rates.append(leak_rate)
+                
+                duration_hours = (row['end'] - row['start']).total_seconds() / 3600
+                print(f"  {row['start'].strftime('%m-%d %H:%M')} - {row['end'].strftime('%m-%d %H:%M')} | "
+                      f"速率: {leak_rate:.2f} mm/h | 持续: {duration_hours:.1f}h | "
+                      f"液位降: {abs(row['delta_12h_mm']):.1f}mm")
+        
+        if leak_rates:
+            print(f"  平均漏水速率: {np.mean(leak_rates):.2f} mm/h")
+            print(f"  最大漏水速率: {np.max(leak_rates):.2f} mm/h")
+            print(f"  最小漏水速率: {np.min(leak_rates):.2f} mm/h")
+            print(f"  漏水事件总数: {len(leak_rates)}")
 
 def main():
     """主函数"""
@@ -235,6 +320,9 @@ def main():
     # 加载事件数据和气象数据
     anomalies_df, drain_df = load_events_data()
     weather_df = load_weather_data()
+    
+    # 计算漏水速率统计
+    calculate_leak_rate_statistics(drain_df)
     
     # 创建图形
     fig, axes = plt.subplots(3, 1, figsize=(15, 18))
@@ -256,7 +344,7 @@ def main():
     
     # 保存图形
     plt.savefig('device_liquid_level_with_rainfall_val.png', dpi=300, bbox_inches='tight')
-    print("图形已保存为 device_liquid_level_with_rainfall_val.png")
+    print("\n图形已保存为 device_liquid_level_with_rainfall_val.png")
 
 if __name__ == "__main__":
     main()

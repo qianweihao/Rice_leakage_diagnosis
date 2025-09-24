@@ -1,10 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-设备液位数据可视化脚本
-用于绘制device_157B025030026和device_157B025030033的液位数据
-并标注异常和漏水事件
-"""
-
+# #校准组-设备液位数据可视化脚本
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
