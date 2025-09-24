@@ -1,5 +1,7 @@
 #过程图像分析
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')  # 设置后端，避免显示问题
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime, timedelta
@@ -117,17 +119,27 @@ device_events_raw = labeled_events_raw[(labeled_events_raw['code'] == device_id)
 fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(15, 24))
 fig.suptitle(f'设备 {device_id} 漏水事件分析', fontsize=16, fontweight='bold', y=0.98)
 
-# 第一个图：展示快速下降 vs 短窗累计下降
-ax1.plot(device_data['msgTime'], device_data['liquidLevel_clean'], 'b-', linewidth=1, alpha=0.7, label='液位数据')
+# 第一个图：展示快速下降 vs 短窗累计下降 (7月21日-7月26日)
+# 过滤7月21日到7月26日的数据
+start_date_123 = pd.to_datetime('2025-07-21')
+end_date_123 = pd.to_datetime('2025-07-26')
+data_filtered_123 = device_data[(device_data['msgTime'] >= start_date_123) & (device_data['msgTime'] <= end_date_123)]
 
-# 标记漏水事件
+ax1.plot(data_filtered_123['msgTime'], data_filtered_123['liquidLevel_clean'], 'b-', linewidth=1, alpha=0.7, label='液位数据')
+ax1.set_xlim(start_date_123, end_date_123)
+
+# 标记漏水事件 (仅显示7月21日-7月26日期间的事件)
 for _, event in device_events.iterrows():
     start_time = pd.to_datetime(event['start'])
     end_time = pd.to_datetime(event['end'])
     
+    # 只处理7月21日-7月26日期间的事件
+    if not (start_time >= start_date_123 and start_time <= end_date_123):
+        continue
+    
     # 获取事件期间的数据
-    event_mask = (device_data['msgTime'] >= start_time) & (device_data['msgTime'] <= end_time)
-    event_data = device_data[event_mask]
+    event_mask = (data_filtered_123['msgTime'] >= start_time) & (data_filtered_123['msgTime'] <= end_time)
+    event_data = data_filtered_123[event_mask]
     
     if len(event_data) > 0:
         # 计算事件特征
@@ -138,11 +150,11 @@ for _, event in device_events.iterrows():
         # 分类：多小时快速下降 vs 短窗累计下降
         if duration_hours >= 8 and avg_rate < -0.5:  # 多小时快速下降
             color = 'red'
-            label_text = f'多小时快速下降\n{duration_hours:.1f}h, {avg_rate:.2f}mm/h'
+            label_text = f'多小时快速下降\n{duration_hours:.1f}h, {avg_rate/10:.3f}cm/h'
             event_type = '多小时快速下降'
         else:  # 短窗累计下降
             color = 'orange'
-            label_text = f'短窗累计下降\n{duration_hours:.1f}h, {total_drop:.1f}mm'
+            label_text = f'短窗累计下降\n{duration_hours:.1f}h, {total_drop/10:.2f}cm'
             event_type = '短窗累计下降'
         
         # 绘制事件区域
@@ -150,39 +162,46 @@ for _, event in device_events.iterrows():
         
         # 添加标注
         mid_time = start_time + (end_time - start_time) / 2
-        mid_level = event_data['liquidLevel_clean'].mean()
-        ax1.annotate(label_text, xy=(mid_time, mid_level), 
-                    xytext=(10, 10), textcoords='offset points',
-                    bbox=dict(boxstyle='round,pad=0.3', facecolor=color, alpha=0.7),
-                    fontsize=8, ha='left')
+        if len(event_data) > 0:
+            mid_level = event_data['liquidLevel_clean'].mean()
+            ax1.annotate(label_text, xy=(mid_time, mid_level), 
+                        xytext=(10, 10), textcoords='offset points',
+                        bbox=dict(boxstyle='round,pad=0.3', facecolor=color, alpha=0.7),
+                        fontsize=8, ha='left')
         
-        print(f"事件分类: {event_type}, 时长: {duration_hours:.1f}小时, 平均速率: {avg_rate:.2f}mm/h")
+        print(f"事件分类: {event_type}, 时长: {duration_hours:.1f}小时, 平均速率: {avg_rate/10:.3f}cm/h")
 
 ax1.set_xlabel('时间')
-ax1.set_ylabel('液位 (mm)')
+ax1.set_ylabel('液位 (cm)')
 ax1.set_title('图1: 漏水事件分类 - 多小时快速下降 vs 短窗累计下降')
 ax1.grid(True, alpha=0.3)
 ax1.legend()
 
 # 设置时间轴格式
-ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-ax1.xaxis.set_major_locator(mdates.DayLocator(interval=5))
+ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+ax1.xaxis.set_major_locator(mdates.HourLocator(interval=12))  # 每12小时一个主刻度
+ax1.xaxis.set_minor_locator(mdates.HourLocator(interval=6))   # 每6小时一个次刻度
 plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45)
 
-# 第二个图：展示三重过滤机制
-ax2.plot(device_data['msgTime'], device_data['liquidLevel_clean'], 'b-', linewidth=1, alpha=0.7, label='液位数据')
+# 第二个图：展示三重过滤机制 (7月21日-7月26日)
+ax2.plot(data_filtered_123['msgTime'], data_filtered_123['liquidLevel_clean'], 'b-', linewidth=1, alpha=0.7, label='液位数据')
+ax2.set_xlim(start_date_123, end_date_123)
 
 # 标记mask_final为True的点（通过过滤的漏水点）
-mask_true = device_data['mask_final'] == True
-if mask_true.any():
-    ax2.scatter(device_data.loc[mask_true, 'msgTime'], 
-               device_data.loc[mask_true, 'liquidLevel_clean'], 
+mask_true_filtered = data_filtered_123['mask_final'] == True
+if mask_true_filtered.any():
+    ax2.scatter(data_filtered_123.loc[mask_true_filtered, 'msgTime'], 
+               data_filtered_123.loc[mask_true_filtered, 'liquidLevel_clean'], 
                c='red', s=20, alpha=0.8, label='通过过滤的漏水点', zorder=5)
 
-# 模拟三重过滤的标记（基于实际算法逻辑）
+# 模拟三重过滤的标记（基于实际算法逻辑） (仅显示7月21日-7月26日期间的事件)
 for _, event in device_events.iterrows():
     start_time = pd.to_datetime(event['start'])
     end_time = pd.to_datetime(event['end'])
+    
+    # 只处理7月21日-7月26日期间的事件
+    if not (start_time >= start_date_123 and start_time <= end_date_123):
+        continue
     
     # 获取事件前后的数据用于过滤分析
     extended_start = start_time - timedelta(hours=6)
@@ -255,29 +274,36 @@ for _, event in device_events.iterrows():
                 print(f"事件 {start_time} 通过所有过滤器")
 
 ax2.set_xlabel('时间')
-ax2.set_ylabel('液位 (mm)')
+ax2.set_ylabel('液位 (cm)')
 ax2.set_title('图2: 三重过滤机制标记')
 ax2.grid(True, alpha=0.3)
 ax2.legend()
 
 # 设置时间轴格式
-ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-ax2.xaxis.set_major_locator(mdates.DayLocator(interval=5))
+ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+ax2.xaxis.set_major_locator(mdates.HourLocator(interval=12))  # 每12小时一个主刻度
+ax2.xaxis.set_minor_locator(mdates.HourLocator(interval=6))   # 每6小时一个次刻度
 plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45)
 
-# 第三个图：展示12小时后置确认机制
-ax3.plot(device_data['msgTime'], device_data['liquidLevel_clean'], 'b-', linewidth=1, alpha=0.7, label='液位数据')
+# 第三个图：展示12小时后置确认机制 (7月21日-7月26日)
+ax3.plot(data_filtered_123['msgTime'], data_filtered_123['liquidLevel_clean'], 'b-', linewidth=1, alpha=0.7, label='液位数据')
+ax3.set_xlim(start_date_123, end_date_123)
 
-# 标记未经12h确认的drain事件（灰色）
+# 标记未经12h确认的drain事件（灰色） (仅显示7月21日-7月26日期间的事件)
 for _, event in device_events_raw.iterrows():
     start_time = pd.to_datetime(event['start'])
     end_time = pd.to_datetime(event['end'])
+    
+    # 只处理7月21日-7月26日期间的事件
+    if not (start_time >= start_date_123 and start_time <= end_date_123):
+        continue
+        
     ax3.axvspan(start_time, end_time, alpha=0.2, color='gray', label='未确认事件' if _ == device_events_raw.index[0] else "")
     
     # 添加标注
     mid_time = start_time + (end_time - start_time) / 2
-    event_mask = (device_data['msgTime'] >= start_time) & (device_data['msgTime'] <= end_time)
-    event_data = device_data[event_mask]
+    event_mask = (data_filtered_123['msgTime'] >= start_time) & (data_filtered_123['msgTime'] <= end_time)
+    event_data = data_filtered_123[event_mask]
     if len(event_data) > 0:
         mid_level = event_data['liquidLevel_clean'].mean()
         ax3.annotate('未确认', xy=(mid_time, mid_level), 
@@ -285,10 +311,14 @@ for _, event in device_events_raw.iterrows():
                     bbox=dict(boxstyle='round,pad=0.2', facecolor='gray', alpha=0.5),
                     fontsize=7, ha='left')
 
-# 标记通过12h确认的drain事件（绿色）
+# 标记通过12h确认的drain事件（绿色） (仅显示7月21日-7月26日期间的事件)
 for _, event in device_events.iterrows():
     start_time = pd.to_datetime(event['start'])
     end_time = pd.to_datetime(event['end'])
+    
+    # 只处理7月21日-7月26日期间的事件
+    if not (start_time >= start_date_123 and start_time <= end_date_123):
+        continue
     
     # 绘制确认事件区域
     ax3.axvspan(start_time, end_time, alpha=0.4, color='green', label='12h确认事件' if _ == device_events.index[0] else "")
@@ -301,15 +331,15 @@ for _, event in device_events.iterrows():
     ax3.axvline(x=t12, color='red', linestyle='--', alpha=0.7, linewidth=1)
     
     # 获取事件期间的数据
-    event_mask = (device_data['msgTime'] >= start_time) & (device_data['msgTime'] <= end_time)
-    event_data = device_data[event_mask]
+    event_mask = (data_filtered_123['msgTime'] >= start_time) & (data_filtered_123['msgTime'] <= end_time)
+    event_data = data_filtered_123[event_mask]
     
     if len(event_data) > 0:
         mid_time = start_time + (end_time - start_time) / 2
         mid_level = event_data['liquidLevel_clean'].mean()
         
         # 添加确认标注
-        ax3.annotate(f'12h确认\n下降{abs(delta_12h):.1f}mm', 
+        ax3.annotate(f'12h确认\n下降{abs(delta_12h)/10:.2f}cm', 
                     xy=(mid_time, mid_level), 
                     xytext=(10, 15), textcoords='offset points',
                     bbox=dict(boxstyle='round,pad=0.3', facecolor='green', alpha=0.7),
@@ -319,31 +349,38 @@ for _, event in device_events.iterrows():
         t12_data = device_data[device_data['msgTime'] >= t12]
         if len(t12_data) > 0:
             t12_level = t12_data['liquidLevel_clean'].iloc[0]
-            ax3.annotate(f'+12h\n{t12_level:.1f}mm', 
+            ax3.annotate(f'+12h\n{t12_level/10:.2f}cm', 
                         xy=(t12, t12_level), 
                         xytext=(5, -15), textcoords='offset points',
                         bbox=dict(boxstyle='round,pad=0.2', facecolor='red', alpha=0.7),
                         fontsize=7, ha='center', color='white')
 
 ax3.set_xlabel('时间')
-ax3.set_ylabel('液位 (mm)')
+ax3.set_ylabel('液位 (cm)')
 ax3.set_title('图3: 12小时后置确认机制 - 确认前后事件对比')
 ax3.grid(True, alpha=0.3)
 ax3.legend()
 
 # 设置时间轴格式
-ax3.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-ax3.xaxis.set_major_locator(mdates.DayLocator(interval=5))
+ax3.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+ax3.xaxis.set_major_locator(mdates.HourLocator(interval=12))  # 每12小时一个主刻度
+ax3.xaxis.set_minor_locator(mdates.HourLocator(interval=6))   # 每6小时一个次刻度
 plt.setp(ax3.xaxis.get_majorticklabels(), rotation=45)
 
-# 第四个图：原始水位数据及异常值标记
+# 第四个图：原始水位数据及异常值标记 (9月1日之后)
+# 过滤9月1日之后的数据
+start_date_4 = pd.to_datetime('2025-09-01')
 if not raw_data.empty and 'liquidLevelValue' in raw_data.columns:
+    raw_data_filtered = raw_data[raw_data['msgTime'] >= start_date_4]
+    device_data_filtered_4 = device_data[device_data['msgTime'] >= start_date_4]
+    
     # 绘制原始水位数据
-    ax4.plot(raw_data['msgTime'], raw_data['liquidLevelValue'], 'blue', linewidth=0.8, alpha=0.7, label='原始水位数据')
+    ax4.plot(raw_data_filtered['msgTime'], raw_data_filtered['liquidLevelValue'], 'blue', linewidth=0.8, alpha=0.7, label='原始水位数据')
+    ax4.set_xlim(start_date_4, raw_data_filtered['msgTime'].max() if not raw_data_filtered.empty else start_date_4)
     
     # 标记异常值点（基于is_outlier列）
-    if 'is_outlier' in raw_data.columns:
-        outliers = raw_data[raw_data['is_outlier'] == True]
+    if 'is_outlier' in raw_data_filtered.columns:
+        outliers = raw_data_filtered[raw_data_filtered['is_outlier'] == True]
         if not outliers.empty:
             ax4.scatter(outliers['msgTime'], outliers['liquidLevelValue'], 
                        color='red', s=40, alpha=0.8, label=f'异常水位点 ({len(outliers)}个)', zorder=5)
@@ -351,39 +388,43 @@ if not raw_data.empty and 'liquidLevelValue' in raw_data.columns:
             # 为异常点添加标注（仅标注前几个，避免过于拥挤）
             outlier_sample = outliers.head(5)  # 只标注前5个异常点
             for idx, row in outlier_sample.iterrows():
-                ax4.annotate(f'{row["liquidLevelValue"]:.1f}mm', 
+                ax4.annotate(f'{row["liquidLevelValue"]/10:.2f}cm', 
                            xy=(row['msgTime'], row['liquidLevelValue']), 
                            xytext=(5, 10), textcoords='offset points',
                            bbox=dict(boxstyle='round,pad=0.2', facecolor='red', alpha=0.7),
                            fontsize=7, ha='left', color='white')
     
     # 叠加显示清洗后的数据进行对比
-    if 'liquidLevel_clean' in device_data.columns:
-        ax4.plot(device_data['msgTime'], device_data['liquidLevel_clean'], 
+    if 'liquidLevel_clean' in device_data_filtered_4.columns:
+        ax4.plot(device_data_filtered_4['msgTime'], device_data_filtered_4['liquidLevel_clean'], 
                 'green', linewidth=1.2, alpha=0.8, label='清洗后数据', zorder=3)
 else:
     # 如果没有原始数据，使用清洗后数据中的原始列
-    if 'liquidLevel' in device_data.columns:
-        ax4.plot(device_data['msgTime'], device_data['liquidLevel'], 'blue', linewidth=1, label='原始水位数据')
+    device_data_filtered_4 = device_data[device_data['msgTime'] >= start_date_4]
+    if 'liquidLevel' in device_data_filtered_4.columns:
+        ax4.plot(device_data_filtered_4['msgTime'], device_data_filtered_4['liquidLevel'], 'blue', linewidth=1, label='原始水位数据')
+        ax4.set_xlim(start_date_4, device_data_filtered_4['msgTime'].max() if not device_data_filtered_4.empty else start_date_4)
         
-        if 'is_outlier' in device_data.columns:
-            outliers = device_data[device_data['is_outlier'] == 1]
+        if 'is_outlier' in device_data_filtered_4.columns:
+            outliers = device_data_filtered_4[device_data_filtered_4['is_outlier'] == 1]
             if not outliers.empty:
                 ax4.scatter(outliers['msgTime'], outliers['liquidLevel'], 
                            color='red', s=40, alpha=0.8, label=f'异常水位点 ({len(outliers)}个)', zorder=5)
     else:
         ax4.text(0.5, 0.5, '无原始水位数据', transform=ax4.transAxes, 
                  ha='center', va='center', fontsize=14, color='gray')
+        ax4.set_xlim(start_date_4, start_date_4 + pd.Timedelta(days=30))
 
 ax4.set_xlabel('时间')
-ax4.set_ylabel('液位 (mm)')
+ax4.set_ylabel('液位 (cm)')
 ax4.set_title('图4: 原始水位数据及异常值标记')
 ax4.grid(True, alpha=0.3)
 ax4.legend()
 
 # 设置时间轴格式
-ax4.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-ax4.xaxis.set_major_locator(mdates.DayLocator(interval=5))
+ax4.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+ax4.xaxis.set_major_locator(mdates.HourLocator(interval=12))  # 每12小时一个主刻度
+ax4.xaxis.set_minor_locator(mdates.HourLocator(interval=6))   # 每6小时一个次刻度
 plt.setp(ax4.xaxis.get_majorticklabels(), rotation=45)
 
 # 调整布局，增加子图间距
@@ -422,7 +463,9 @@ for _, event in device_events.iterrows():
 
 print(f"多小时快速下降事件: {long_duration_events}")
 print(f"短窗累计下降事件: {short_duration_events}")
-print(f"通过过滤的数据点数: {mask_true.sum()}")
+# 计算整个数据集中通过过滤的数据点数
+mask_true_all = device_data['mask_final'] == True
+print(f"通过过滤的数据点数: {mask_true_all.sum()}")
 
 print(f"\n=== 数据质量统计 ===")
 if not raw_data.empty:
@@ -449,7 +492,7 @@ if len(device_events) > 0:
     print("\n=== 12小时确认详情 ===")
     for _, event in device_events.iterrows():
         print(f"事件: {event['start']} - {event['end']}")
-        print(f"  起始液位: {event['level_start_mm']:.1f}mm")
-        print(f"  12h后液位: {event['level_at_12h_mm']:.1f}mm")
-        print(f"  12h液位变化: {event['delta_12h_mm']:.2f}mm")
+        print(f"  起始液位: {event['level_start_mm']/10:.2f}cm")
+        print(f"  12h后液位: {event['level_at_12h_mm']/10:.2f}cm")
+        print(f"  12h液位变化: {event['delta_12h_mm']/10:.3f}cm")
         print(f"  确认状态: {'通过' if event['delta_12h_mm'] <= -2.5 else '未通过'}")

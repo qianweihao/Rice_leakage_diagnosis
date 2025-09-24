@@ -19,6 +19,13 @@ WEATHER_FILE = "峨桥气象数据0615_0915.xlsx"
 # 目标设备
 DEVICES = ["157B025010050", "157B025030023", "157B025030032"]
 
+# 设备ID到地块名称的映射
+DEVICE_TO_PLOT_NAME = {
+    "157B025010050": "H9",
+    "157B025030023": "H10", 
+    "157B025030032": "H14"
+}
+
 def load_device_data(device_code):
     """加载设备数据"""
     file_path = f"{LABEL_DATA_DIR}/device_{device_code}.csv"
@@ -57,27 +64,29 @@ def load_weather_data():
         print(f"读取气象数据时出错: {e}")
         return pd.DataFrame()
 
-def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df):
+def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df, start_date=None, end_date=None, period_label=""):
     """绘制单个设备的数据和事件"""
-    # 定义时间范围
-    start_date = pd.to_datetime('2025-08-10')
-    end_date = pd.to_datetime('2025-09-17')
+    # 如果没有指定时间范围，使用默认值
+    if start_date is None:
+        start_date = pd.to_datetime('2025-08-10')
+    if end_date is None:
+        end_date = pd.to_datetime('2025-09-17')
     
     # 定义人工排水事件日期和级别
     manual_drain_events = {
         '157B025010050': {
-            '2025-09-12': {'level': '中度排水', 'color': 'purple', 'linestyle': '--', 'marker': 'v'},
-            '2025-09-16': {'level': '轻度排水', 'color': 'cyan', 'linestyle': '-.', 'marker': 'o'}
+            '2025-09-12': {'level': '中度排水', 'color': 'orange', 'linestyle': '--', 'marker': 'v'},
+            '2025-09-16': {'level': '轻度排水', 'color': 'orange', 'linestyle': '-.', 'marker': 'o'}
         },
         '157B025030023': {
-            '2025-08-13': {'level': '重度排水', 'color': 'darkred', 'linestyle': ':', 'marker': 's'},
-            '2025-09-12': {'level': '中度排水', 'color': 'purple', 'linestyle': '--', 'marker': 'v'},
-            '2025-09-16': {'level': '轻度排水', 'color': 'cyan', 'linestyle': '-.', 'marker': 'o'}
+            '2025-08-13': {'level': '重度排水', 'color': 'orange', 'linestyle': ':', 'marker': 's'},
+            '2025-09-12': {'level': '中度排水', 'color': 'orange', 'linestyle': '--', 'marker': 'v'},
+            '2025-09-16': {'level': '轻度排水', 'color': 'orange', 'linestyle': '-.', 'marker': 'o'}
         },
         '157B025030032': {
-            '2025-08-13': {'level': '重度排水', 'color': 'darkred', 'linestyle': ':', 'marker': 's'},
-            '2025-09-12': {'level': '中度排水', 'color': 'purple', 'linestyle': '--', 'marker': 'v'},
-            '2025-09-16': {'level': '轻度排水', 'color': 'cyan', 'linestyle': '-.', 'marker': 'o'}
+            '2025-08-13': {'level': '重度排水', 'color': 'orange', 'linestyle': ':', 'marker': 's'},
+            '2025-09-12': {'level': '中度排水', 'color': 'orange', 'linestyle': '--', 'marker': 'v'},
+            '2025-09-16': {'level': '轻度排水', 'color': 'orange', 'linestyle': '-.', 'marker': 'o'}
         }
     }
     
@@ -91,7 +100,7 @@ def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df)
     ax2 = ax.twinx()
     
     # 绘制液位数据
-    line1 = ax.plot(df['msgTime'], df['liquidLevelValue'], 'b-', linewidth=1, alpha=0.7, label='液位值')
+    line1 = ax.plot(df['msgTime'], df['liquidLevel_clean'], 'b-', linewidth=1, alpha=0.7, label='液位值')
     
     # 绘制降雨量数据
     if not weather_df.empty:
@@ -116,19 +125,8 @@ def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df)
                 liquid_ylim = ax.get_ylim()
                 ax2.set_ylim(liquid_ylim)
     
-    # 筛选该设备的异常事件（在时间范围内）
-    device_anomalies = anomalies_df[
-        (anomalies_df['code'] == device_code) &
-        (anomalies_df['start'] <= end_date) &
-        (anomalies_df['end'] >= start_date)
-    ]
-    
-    # 标注异常事件
-    anomaly_labeled = False
-    for _, row in device_anomalies.iterrows():
-        label = '异常' if not anomaly_labeled else ""
-        ax.axvspan(row['start'], row['end'], alpha=0.3, color='red', label=label)
-        anomaly_labeled = True
+    # 移除异常事件相关代码
+    device_anomalies = pd.DataFrame()  # 空的DataFrame，不显示异常事件
     
     # 筛选该设备的漏水事件（在时间范围内）
     device_drains = drain_df[
@@ -166,9 +164,10 @@ def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df)
             # 如果没有delta_12h_mm，使用持续时间估算
             leak_rate = 5.0 / duration_hours if duration_hours > 0 else 0  # 假设平均漏水5mm
         
-        label = '算法检测漏水' if not drain_labeled else ""
-        # 增强算法漏水事件的可视化效果
-        ax.axvspan(row['start'], row['end'], alpha=0.5, facecolor='red', label=label, edgecolor='darkred', linewidth=2)
+        label = '算法识别漏水' if not drain_labeled else ""
+        # 增强算法漏水事件的可视化效果，添加网格线样式
+        ax.axvspan(row['start'], row['end'], alpha=0.4, facecolor='red', label=label, 
+                  edgecolor='darkred', linewidth=2, hatch='///')
         
         # 在时段中间添加文本标注
         mid_time = row['start'] + (row['end'] - row['start']) / 2
@@ -186,14 +185,17 @@ def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df)
     ax.set_xlim(start_date, end_date)
     
     # 设置图表标题和标签
-    ax.set_title(f'设备 {device_code} 液位数据与事件分析 (2025-08-10 至 2025-09-17)', fontsize=14, fontweight='bold')
+    plot_name = DEVICE_TO_PLOT_NAME.get(device_code, device_code)
+    title_suffix = period_label if period_label else f"({start_date.strftime('%Y-%m-%d')} 至 {end_date.strftime('%Y-%m-%d')})"
+    ax.set_title(f'地块 {plot_name} 液位数据与事件分析 {title_suffix}', fontsize=14, fontweight='bold')
     ax.set_xlabel('时间', fontsize=12)
     ax.set_ylabel('液位值（cm）', fontsize=12)
     ax.grid(True, alpha=0.3)
     
-    # 格式化x轴日期
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-    ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
+    # 格式化x轴日期 - 按小时标记
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+    ax.xaxis.set_major_locator(mdates.HourLocator(interval=12))  # 每12小时一个主刻度
+    ax.xaxis.set_minor_locator(mdates.HourLocator(interval=6))   # 每6小时一个次刻度
     plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
     
     # 标记人工排水事件
@@ -235,28 +237,17 @@ def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df)
     legend_elements = []
     legend_elements.append(plt.Line2D([0], [0], color='b', linewidth=1, label='液位值'))
     
-    if len(device_anomalies) > 0:
-        legend_elements.append(plt.Rectangle((0, 0), 1, 1, facecolor='red', alpha=0.3, label='异常'))
-    
+    # 添加算法识别漏水事件到图例
     if len(device_drains) > 0:
-        legend_elements.append(plt.Rectangle((0, 0), 1, 1, facecolor='orange', alpha=0.3, label='漏水'))
+        legend_elements.append(plt.Rectangle((0, 0), 1, 1, facecolor='red', alpha=0.4, 
+                                           edgecolor='darkred', linewidth=1, hatch='///', label='算法识别漏水'))
     
-    # 添加人工排水事件到图例
+    # 添加人工排水事件到图例（统一标识）
     device_drain_events = manual_drain_events.get(device_code, {})
-    drain_levels_in_device = set()
-    for event_info in device_drain_events.values():
-        drain_levels_in_device.add((event_info['level'], event_info['color'], event_info['linestyle']))
-    
-    for level, color, linestyle in drain_levels_in_device:
-        # 获取对应的marker
-        marker = None
-        for event_info in device_drain_events.values():
-            if event_info['level'] == level:
-                marker = event_info['marker']
-                break
-        legend_elements.append(plt.Line2D([0], [0], color=color, linestyle=linestyle, 
-                                        linewidth=4, marker=marker, markersize=8, 
-                                        markeredgecolor='black', markeredgewidth=1, label=level))
+    if device_drain_events:
+        # 添加一个统一的人工排水图例项
+        legend_elements.append(plt.Rectangle((0, 0), 1, 1, facecolor='orange', alpha=0.3, 
+                                           edgecolor='black', linewidth=1, label='人工排水事件'))
     
     # 添加降雨量到图例
     if not weather_df.empty:
@@ -266,7 +257,6 @@ def plot_device_with_events(device_code, ax, anomalies_df, drain_df, weather_df)
     
     # 打印事件统计
     print(f"设备 {device_code}:")
-    print(f"  异常事件数量: {len(device_anomalies)}")
     print(f"  算法检测漏水事件数量（指定日期）: {len(device_drains)}")
     device_drain_events = manual_drain_events.get(device_code, {})
     print(f"  人工排水事件数量: {len(device_drain_events)}")
@@ -315,8 +305,6 @@ def main():
         print(f"错误：找不到文件 {DRAIN_EVENTS_FILE}")
         return
     
-    # 人工排水事件已在plot_device_with_events函数中定义
-    
     # 加载事件数据和气象数据
     anomalies_df, drain_df = load_events_data()
     weather_df = load_weather_data()
@@ -324,23 +312,50 @@ def main():
     # 计算漏水速率统计
     calculate_leak_rate_statistics(drain_df)
     
-    # 创建图形
-    fig, axes = plt.subplots(3, 1, figsize=(15, 18))
-    fig.suptitle('设备液位数据及异常/漏水事件标注', fontsize=16, fontweight='bold')
+    # 定义不同设备的时间段
+    device_periods = {
+        '157B025010050': [
+            (pd.to_datetime('2025-09-10'), pd.to_datetime('2025-09-17'), '(2025-09-10 至 2025-09-17)')
+        ],
+        '157B025030023': [
+            (pd.to_datetime('2025-08-10'), pd.to_datetime('2025-08-14'), '(2025-08-10 至 2025-08-14)'),
+            (pd.to_datetime('2025-09-10'), pd.to_datetime('2025-09-17'), '(2025-09-10 至 2025-09-17)')
+        ],
+        '157B025030032': [
+            (pd.to_datetime('2025-08-10'), pd.to_datetime('2025-08-14'), '(2025-08-10 至 2025-08-14)'),
+            (pd.to_datetime('2025-09-10'), pd.to_datetime('2025-09-17'), '(2025-09-10 至 2025-09-17)')
+        ]
+    }
     
-    # 绘制三个设备的数据
-    for i, device_code in enumerate(DEVICES):
-        try:
-            plot_device_with_events(device_code, axes[i], anomalies_df, drain_df, weather_df)
-        except FileNotFoundError:
-            print(f"错误：找不到设备 {device_code} 的数据文件")
-            axes[i].text(0.5, 0.5, f'设备 {device_code} 数据文件不存在', 
-                        transform=axes[i].transAxes, ha='center', va='center', fontsize=14)
-            axes[i].set_title(f'设备 {device_code} (数据缺失)', fontsize=14)
+    # 计算总的子图数量
+    total_plots = sum(len(periods) for periods in device_periods.values())
+    
+    # 创建图形
+    fig, axes = plt.subplots(total_plots, 1, figsize=(15, 6 * total_plots))
+    fig.suptitle('地块液位数据及人工排水/算法识别排水事件标注', fontsize=16, fontweight='bold')
+    
+    # 如果只有一个子图，确保axes是列表
+    if total_plots == 1:
+        axes = [axes]
+    
+    # 绘制各设备不同时间段的数据
+    plot_index = 0
+    for device_code in DEVICES:
+        periods = device_periods[device_code]
+        for start_date, end_date, period_label in periods:
+            try:
+                plot_device_with_events(device_code, axes[plot_index], anomalies_df, drain_df, weather_df, 
+                                       start_date, end_date, period_label)
+            except FileNotFoundError:
+                print(f"错误：找不到设备 {device_code} 的数据文件")
+                axes[plot_index].text(0.5, 0.5, f'设备 {device_code} 数据文件不存在', 
+                            transform=axes[plot_index].transAxes, ha='center', va='center', fontsize=14)
+                axes[plot_index].set_title(f'设备 {device_code} (数据缺失) {period_label}', fontsize=14)
+            plot_index += 1
     
     # 调整布局
     plt.tight_layout()
-    plt.subplots_adjust(top=0.93)
+    plt.subplots_adjust(top=0.96)
     
     # 保存图形
     plt.savefig('device_liquid_level_with_rainfall_val.png', dpi=300, bbox_inches='tight')
